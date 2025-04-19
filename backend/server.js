@@ -20,6 +20,7 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/messages', require('./routes/messages'));
+app.use('/api/requests', require('./routes/requests'));
 
 // Welcome route
 app.get('/', (req, res) => {

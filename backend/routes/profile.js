@@ -22,6 +22,40 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
+// @route   GET /api/profile
+// @desc    Get all profiles for discovery
+// @access  Private
+router.get('/', auth, async (req, res) => {
+  try {
+    const profiles = await Profile.find().populate('user', ['name', 'avatar']);
+    res.json(profiles);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// @route   GET /api/profile/user/:user_id
+// @desc    Get profile by user ID
+// @access  Private
+router.get('/user/:user_id', auth, async (req, res) => {
+  try {
+    const profile = await Profile.findOne({ user: req.params.user_id }).populate('user', ['name', 'avatar']);
+    
+    if (!profile) {
+      return res.status(400).json({ msg: 'Profile not found' });
+    }
+    
+    res.json(profile);
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(400).json({ msg: 'Profile not found' });
+    }
+    res.status(500).send('Server error');
+  }
+});
+
 // @route   POST /api/profile
 // @desc    Create or update user profile
 // @access  Private
@@ -62,6 +96,57 @@ router.post('/', auth, async (req, res) => {
     profile = new Profile(profileFields);
     await profile.save();
     res.json(profile);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// @route   DELETE /api/profile
+// @desc    Delete profile and user
+// @access  Private
+router.delete('/', auth, async (req, res) => {
+  try {
+    // Remove profile
+    await Profile.findOneAndRemove({ user: req.user.id });
+    // Remove user
+    await User.findOneAndRemove({ _id: req.user.id });
+    
+    res.json({ msg: 'User deleted' });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send('Server error');
+  }
+});
+
+// @route   GET /api/profile/search
+// @desc    Search profiles by name, location, or interests
+// @access  Private
+router.get('/search', auth, async (req, res) => {
+  const { query } = req.query;
+  
+  try {
+    if (!query) {
+      return res.status(400).json({ msg: 'Search query is required' });
+    }
+    
+    // Search in user name
+    const users = await User.find({
+      name: { $regex: query, $options: 'i' }
+    }).select('_id');
+    
+    const userIds = users.map(user => user._id);
+    
+    // Search in profiles
+    const profiles = await Profile.find({
+      $or: [
+        { user: { $in: userIds } },
+        { location: { $regex: query, $options: 'i' } },
+        { interests: { $regex: query, $options: 'i' } }
+      ]
+    }).populate('user', ['name', 'avatar']);
+    
+    res.json(profiles);
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server error');
